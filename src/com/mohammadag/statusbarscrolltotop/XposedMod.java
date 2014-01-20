@@ -152,8 +152,15 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 					}
 					break;
 				case MotionEvent.ACTION_MOVE:
-					if (mIsClick && (Math.abs(mDownX - ev.getX()) > SCROLL_THRESHOLD || Math.abs(mDownY - ev.getY()) > SCROLL_THRESHOLD)) {
-						mIsClick = false;
+					if (mIsClick) {
+						float x = ev.getX();
+						float y = ev.getY();
+						boolean xMoved = Math.abs(mDownX - x) > SCROLL_THRESHOLD;
+						boolean yMoved = Math.abs(mDownY - y) > SCROLL_THRESHOLD;
+
+						if (xMoved || yMoved) {
+							mIsClick = false;
+						}
 					}
 					break;
 				default:
