@@ -14,11 +14,13 @@ import android.graphics.Rect;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.WebView;
 import android.widget.AbsListView;
 import android.widget.ScrollView;
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.IXposedHookZygoteInit;
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodHook.MethodHookParam;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
@@ -26,6 +28,8 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 	/* My name's here so we don't conflict with other fields, deal with it :p */
 	private static final String KEY_RECEIVERS = "mMohammadAG_scrolToTopReceivers";
+	// Maybe it would be better? XposedMod.class.getPackage().getName() + ".receiver"	
+	private static final String KEY_RECEIVER = "mMohammadAG_scrolToTopReceiver" ;
 
 	/* You can trigger this with any app that can fire intents! */
 	private static final String INTENT_SCROLL_TO_TOP = "com.mohammadag.statusbarscrolltotop.SCROLL_TO_TOP";
@@ -46,10 +50,14 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 		@Override
 		public void onReceive(Context context, Intent intent) {
 			if (isViewInViewBounds(getContentViewFromContext(mViewGroup.getContext()), mViewGroup)){
+				if(mViewGroup.findFocus() ==null)
+					return;
 				if(mViewGroup instanceof ScrollView){
 					((ScrollView)mViewGroup).smoothScrollTo(0, 0);
 				}else if(mViewGroup instanceof AbsListView){
 					((AbsListView)mViewGroup).smoothScrollToPosition(0);
+				}else if(mViewGroup instanceof WebView){
+					((WebView)mViewGroup).scrollTo(0, 0);
 				}
 			}
 		}
@@ -76,6 +84,39 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 		/* Another one */
 		findAndHookMethod(ScrollView.class, "initScrollView", initHook);
 
+		findAndHookMethod(WebView.class, "onAttachedToWindow",
+				new XC_MethodHook() {
+					@Override
+					protected void afterHookedMethod(MethodHookParam param)
+							throws Throwable {
+						ViewGroup view = (ViewGroup) param.thisObject;
+						if (!(view.getContext() instanceof Activity))
+							return;
+						Activity activity = (Activity) view.getContext();
+						BroadcastReceiver receiver = new ScrollReceiver(view);
+						activity.registerReceiver(receiver, new IntentFilter(
+								INTENT_SCROLL_TO_TOP));
+						XposedHelpers.setAdditionalInstanceField(view,
+								KEY_RECEIVER, receiver);
+					}
+				});
+
+		findAndHookMethod(WebView.class, "onDetachedFromWindow",
+				new XC_MethodHook() {
+
+					@Override
+					protected void afterHookedMethod(MethodHookParam param)
+							throws Throwable {
+						ViewGroup view = (ViewGroup) param.thisObject;
+						if (!(view.getContext() instanceof Activity))
+							return;
+						Activity activity = (Activity) view.getContext();
+						BroadcastReceiver receiver = (BroadcastReceiver) XposedHelpers
+								.getAdditionalInstanceField(view, KEY_RECEIVER);
+						activity.unregisterReceiver(receiver);
+					}
+				});
+		
 		/* FYI, there are some manufacturer specific ones, like Samsung's TouchWiz ones.
 		 * I'll look into those later on...
 		 */
