@@ -20,7 +20,6 @@ import android.widget.ScrollView;
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.IXposedHookZygoteInit;
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XC_MethodHook.MethodHookParam;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
@@ -39,7 +38,19 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 	private float mDownY;
 	private final float SCROLL_THRESHOLD = 10;
 	private boolean mIsClick;
-
+	/* Javascript script to smooth scrolling. Android framework don't support it out-of-box*/
+	//@formatter:off
+	private static final String JS_SMOOTH_SCROLL = "javascript:"
+			+ "var timeOut;"
+			+ "function scrollToTop() {"
+			+ "  if (document.body.scrollTop!=0 || document.documentElement.scrollTop!=0){"
+			+ "    window.scrollBy(0,-50);"
+			+ "    timeOut=setTimeout('scrollToTop()',10);"
+			+ "  }"
+			+ "  else clearTimeout(timeOut);"
+			+ "}"
+			+ "scrollToTop(); return false;";
+	//@formatter:on
 	/* Some sort of crappy IPC */
 	class ScrollReceiver extends BroadcastReceiver {
 		private ViewGroup mViewGroup;
@@ -50,14 +61,13 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 		@Override
 		public void onReceive(Context context, Intent intent) {
 			if (isViewInViewBounds(getContentViewFromContext(mViewGroup.getContext()), mViewGroup)){
-				if(mViewGroup.findFocus() ==null)
-					return;
-				if(mViewGroup instanceof ScrollView){
-					((ScrollView)mViewGroup).smoothScrollTo(0, 0);
-				}else if(mViewGroup instanceof AbsListView){
-					((AbsListView)mViewGroup).smoothScrollToPosition(0);
-				}else if(mViewGroup instanceof WebView){
-					((WebView)mViewGroup).scrollTo(0, 0);
+				if (mViewGroup instanceof ScrollView) {
+					((ScrollView) mViewGroup).smoothScrollTo(0, 0);
+				} else if (mViewGroup instanceof AbsListView) {
+					((AbsListView) mViewGroup).smoothScrollToPosition(0);
+				} else if (mViewGroup instanceof WebView) {
+					//((WebView) mViewGroup).scrollTo(0, 0);
+					webViewSmoothScroll((WebView) mViewGroup);
 				}
 			}
 		}
@@ -142,6 +152,10 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 				pauseBroadcastReceivers(activity);
 			}
 		});
+	}
+
+	private static void webViewSmoothScroll(WebView wv) {
+		wv.loadUrl(JS_SMOOTH_SCROLL);
 	}
 
 	@Override
