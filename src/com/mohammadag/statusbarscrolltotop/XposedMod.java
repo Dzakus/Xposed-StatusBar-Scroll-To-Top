@@ -136,7 +136,7 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 				unhook = findAndHookMethod(clazz, "onAttachedToWindow",
 						ATTACH_HOOK);
 				findAndHookMethod(clazz, "onDetachedFromWindow", DETACH_HOOK);
-			} catch (Exception e) {
+			} catch (Throwable t) {
 				// TODO Delete additional object fields
 				if (unhook != null)
 					unhook.unhook();
