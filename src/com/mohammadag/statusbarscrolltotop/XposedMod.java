@@ -20,6 +20,7 @@ import android.widget.ScrollView;
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.IXposedHookZygoteInit;
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodHook.Unhook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
@@ -38,6 +39,8 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 	private float mDownY;
 	private final float SCROLL_THRESHOLD = 10;
 	private boolean mIsClick;
+	/* Supported class*/
+	private static final Class<?>[] HAPPY_CLASSES = new Class<?>[]{ScrollView.class, AbsListView.class, WebView.class };
 	/* Javascript script to smooth scrolling. Android framework don't support it out-of-box*/
 	//@formatter:off
 	private static final String JS_SMOOTH_SCROLL = "javascript:"
@@ -52,7 +55,7 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 			+ "scrollToTop(); return false;";
 	//@formatter:on
 	/* Some sort of crappy IPC */
-	class ScrollReceiver extends BroadcastReceiver {
+	static class ScrollReceiver extends BroadcastReceiver {
 		private ViewGroup mViewGroup;
 		public ScrollReceiver(ViewGroup view) {
 			mViewGroup = view;
@@ -72,60 +75,67 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 			}
 		}
 	};
-
-	XC_MethodHook initHook = new XC_MethodHook() {
+	// For class that don't support onAttachedToWindow, onDetachedFromWindow
+	XC_MethodHook activityInitHook = new XC_MethodHook() {
 		@Override
 		protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 			ViewGroup view = (ViewGroup) param.thisObject;
 			if (!(view.getContext() instanceof Activity))
 				return;
-			Activity activity = (Activity) view.getContext();		
+			Activity activity = (Activity) view.getContext();
 			BroadcastReceiver receiver = new ScrollReceiver(view);
 			addReceiverToActivity(activity, receiver);
 			activity.registerReceiver(receiver, new IntentFilter(INTENT_SCROLL_TO_TOP));
 		}
 	};
+
+	private static final XC_MethodHook ATTACH_HOOK = new XC_MethodHook() {
+		@Override
+		protected void afterHookedMethod(MethodHookParam param)
+				throws Throwable {
+			ViewGroup view = (ViewGroup) param.thisObject;
+			if (!(view.getContext() instanceof Activity))
+				return;
+			Activity activity = (Activity) view.getContext();
+			BroadcastReceiver receiver = new ScrollReceiver(view);
+			activity.registerReceiver(receiver, new IntentFilter(
+					INTENT_SCROLL_TO_TOP));
+			XposedHelpers.setAdditionalInstanceField(view, KEY_RECEIVER,
+					receiver);
+		}
+	};
+
+	private static final XC_MethodHook DETACH_HOOK = new XC_MethodHook() {
+		@Override
+		protected void afterHookedMethod(MethodHookParam param)
+				throws Throwable {
+			ViewGroup view = (ViewGroup) param.thisObject;
+			if (!(view.getContext() instanceof Activity))
+				return;
+			Activity activity = (Activity) view.getContext();
+			BroadcastReceiver receiver = (BroadcastReceiver) XposedHelpers
+					.getAdditionalInstanceField(view, KEY_RECEIVER);
+			activity.unregisterReceiver(receiver);
+		}
+	};
 	
 	@Override
 	public void initZygote(StartupParam startupParam) throws Throwable {
-		/* AbsListView, it's one instance of a scroller */
-		findAndHookMethod(AbsListView.class, "initAbsListView", initHook);
-
-		/* Another one */
-		findAndHookMethod(ScrollView.class, "initScrollView", initHook);
-
-		findAndHookMethod(WebView.class, "onAttachedToWindow",
-				new XC_MethodHook() {
-					@Override
-					protected void afterHookedMethod(MethodHookParam param)
-							throws Throwable {
-						ViewGroup view = (ViewGroup) param.thisObject;
-						if (!(view.getContext() instanceof Activity))
-							return;
-						Activity activity = (Activity) view.getContext();
-						BroadcastReceiver receiver = new ScrollReceiver(view);
-						activity.registerReceiver(receiver, new IntentFilter(
-								INTENT_SCROLL_TO_TOP));
-						XposedHelpers.setAdditionalInstanceField(view,
-								KEY_RECEIVER, receiver);
-					}
-				});
-
-		findAndHookMethod(WebView.class, "onDetachedFromWindow",
-				new XC_MethodHook() {
-
-					@Override
-					protected void afterHookedMethod(MethodHookParam param)
-							throws Throwable {
-						ViewGroup view = (ViewGroup) param.thisObject;
-						if (!(view.getContext() instanceof Activity))
-							return;
-						Activity activity = (Activity) view.getContext();
-						BroadcastReceiver receiver = (BroadcastReceiver) XposedHelpers
-								.getAdditionalInstanceField(view, KEY_RECEIVER);
-						activity.unregisterReceiver(receiver);
-					}
-				});
+		
+		for (Class<?> clazz : HAPPY_CLASSES) {
+			Unhook unhook = null;
+			try {
+				unhook = findAndHookMethod(clazz, "onAttachedToWindow",
+						ATTACH_HOOK);
+				findAndHookMethod(clazz, "onDetachedFromWindow", DETACH_HOOK);
+			} catch (Exception e) {
+				// TODO Delete additional object fields
+				if (unhook != null)
+					unhook.unhook();
+				// Fail ex. not found method so try classic way
+				XposedBridge.hookAllConstructors(clazz, activityInitHook);
+			}
+		}
 		
 		/* FYI, there are some manufacturer specific ones, like Samsung's TouchWiz ones.
 		 * I'll look into those later on...
