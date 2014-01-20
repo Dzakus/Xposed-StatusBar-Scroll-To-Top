@@ -13,6 +13,7 @@ import android.content.IntentFilter;
 import android.graphics.Rect;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AbsListView;
 import android.widget.ScrollView;
 import de.robv.android.xposed.IXposedHookLoadPackage;
@@ -36,31 +37,23 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 	private boolean mIsClick;
 
 	/* Some sort of crappy IPC */
-	class ScrollViewReceiver extends BroadcastReceiver {
-		private ScrollView mScrollView;
-		public ScrollViewReceiver(ScrollView view) {
-			mScrollView = view;
+	class ScrollReceiver extends BroadcastReceiver {
+		private ViewGroup mViewGroup;
+		public ScrollReceiver(ViewGroup view) {
+			mViewGroup = view;
 		}
 
 		@Override
 		public void onReceive(Context context, Intent intent) {
-			if (isViewInViewBounds(getContentViewFromContext(mScrollView.getContext()), mScrollView))
-				mScrollView.smoothScrollTo(0, 0);
+			if (isViewInViewBounds(getContentViewFromContext(mViewGroup.getContext()), mViewGroup)){
+				if(mViewGroup instanceof ScrollView){
+					((ScrollView)mViewGroup).smoothScrollTo(0, 0);
+				}else if(mViewGroup instanceof AbsListView){
+					((AbsListView)mViewGroup).smoothScrollToPosition(0);
+				}
+			}
 		}
 	};
-
-	class AbsListViewReceiver extends BroadcastReceiver {
-		private AbsListView mListView;
-		public AbsListViewReceiver(AbsListView view) {
-			mListView = view;
-		}
-
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			if (isViewInViewBounds(getContentViewFromContext(mListView.getContext()), mListView))
-				mListView.smoothScrollToPosition(0);
-		}
-	}
 
 	@Override
 	public void initZygote(StartupParam startupParam) throws Throwable {
@@ -72,7 +65,7 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 				if (!(view.getContext() instanceof Activity))
 					return;
 				Activity activity = (Activity) view.getContext();		
-				AbsListViewReceiver receiver = new AbsListViewReceiver(view);
+				BroadcastReceiver receiver = new ScrollReceiver(view);
 				addReceiverToActivity(activity, receiver);
 				activity.registerReceiver(receiver, new IntentFilter(INTENT_SCROLL_TO_TOP));
 			}
@@ -86,7 +79,7 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 				if (!(view.getContext() instanceof Activity))
 					return;
 				Activity activity = (Activity) view.getContext();		
-				ScrollViewReceiver receiver = new ScrollViewReceiver(view);
+				BroadcastReceiver receiver = new ScrollReceiver(view);
 				addReceiverToActivity(activity, receiver);
 				activity.registerReceiver(receiver, new IntentFilter(INTENT_SCROLL_TO_TOP));
 			}
