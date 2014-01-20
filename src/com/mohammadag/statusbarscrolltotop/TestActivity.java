@@ -84,10 +84,7 @@ public class TestActivity extends Activity implements
 		return true;
 	}
 
-	@SuppressLint("SetJavaScriptEnabled")
 	public static class CustomWebViewFragment extends WebViewFragment {
-		protected boolean mJsEnabled = false;
-
 		public CustomWebViewFragment() {
 		}
 
@@ -98,19 +95,28 @@ public class TestActivity extends Activity implements
 					savedInstanceState);
 
 			StringBuilder data = new StringBuilder("<html><body>");
+			data.append("<script>document.write(\"Javascrip Enabled!\");</script>");
 			for (int i = 0; i < 100; i++) {
 				data.append("</br></br>").append(i).append("<hr>");
 			}
 			data.append("</body></html>");
-			view.getSettings().setJavaScriptEnabled(mJsEnabled);
 			view.loadData(data.toString(), "text/html", null);
 			// view.loadDataWithBaseURL(null, html, "text/htm", "utf-8", null);
 			return view;
 		}
 	}
 
+	@SuppressLint("SetJavaScriptEnabled")
 	public static class Custom2WebViewFragment extends CustomWebViewFragment {
-		protected boolean mJsEnabled = true;
+		@Override
+		public View onCreateView(LayoutInflater inflater, ViewGroup container,
+				Bundle savedInstanceState) {
+			WebView view = (WebView) super.onCreateView(inflater, container,
+					savedInstanceState);
+			view.getSettings().setJavaScriptEnabled(true);
+			return view;
+		}
+
 	}
 
 	public static class ScrollViewFragment extends Fragment {
