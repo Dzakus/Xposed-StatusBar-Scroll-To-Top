@@ -16,6 +16,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebView;
 import android.widget.AbsListView;
+import android.widget.HorizontalScrollView;
 import android.widget.ScrollView;
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.IXposedHookZygoteInit;
@@ -40,7 +41,12 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 	private final float SCROLL_THRESHOLD = 10;
 	private boolean mIsClick;
 	/* Supported class*/
-	private static final Class<?>[] HAPPY_CLASSES = new Class<?>[]{ScrollView.class, AbsListView.class, WebView.class };
+	private static final Class<?>[] HAPPY_CLASSES = new Class<?>[] {
+			ScrollView.class, 
+			AbsListView.class, 
+			WebView.class,
+			HorizontalScrollView.class 
+			};
 	/* Javascript script to smooth scrolling. Android framework don't support it out-of-box*/
 	//@formatter:off
 	private static final String JS_SMOOTH_SCROLL = "javascript:"
@@ -71,6 +77,8 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 				} else if (mViewGroup instanceof WebView) {
 					//((WebView) mViewGroup).scrollTo(0, 0);
 					webViewSmoothScroll((WebView) mViewGroup);
+				} else if (mViewGroup instanceof HorizontalScrollView) {
+					((HorizontalScrollView)mViewGroup).smoothScrollTo(0, 0);
 				}
 			}
 		}
