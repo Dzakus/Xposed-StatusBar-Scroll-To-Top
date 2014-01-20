@@ -58,7 +58,7 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 			+ "  }"
 			+ "  else clearTimeout(timeOut);"
 			+ "}"
-			+ "scrollToTop(); return false;";
+			+ "scrollToTop(); ";
 	//@formatter:on
 	/* Some sort of crappy IPC */
 	static class ScrollReceiver extends BroadcastReceiver {
