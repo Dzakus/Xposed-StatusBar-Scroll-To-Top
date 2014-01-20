@@ -55,35 +55,26 @@ public class XposedMod implements IXposedHookLoadPackage, IXposedHookZygoteInit 
 		}
 	};
 
+	XC_MethodHook initHook = new XC_MethodHook() {
+		@Override
+		protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+			ViewGroup view = (ViewGroup) param.thisObject;
+			if (!(view.getContext() instanceof Activity))
+				return;
+			Activity activity = (Activity) view.getContext();		
+			BroadcastReceiver receiver = new ScrollReceiver(view);
+			addReceiverToActivity(activity, receiver);
+			activity.registerReceiver(receiver, new IntentFilter(INTENT_SCROLL_TO_TOP));
+		}
+	};
+	
 	@Override
 	public void initZygote(StartupParam startupParam) throws Throwable {
 		/* AbsListView, it's one instance of a scroller */
-		findAndHookMethod(AbsListView.class, "initAbsListView", new XC_MethodHook() {
-			@Override
-			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-				AbsListView view = (AbsListView) param.thisObject;
-				if (!(view.getContext() instanceof Activity))
-					return;
-				Activity activity = (Activity) view.getContext();		
-				BroadcastReceiver receiver = new ScrollReceiver(view);
-				addReceiverToActivity(activity, receiver);
-				activity.registerReceiver(receiver, new IntentFilter(INTENT_SCROLL_TO_TOP));
-			}
-		});
+		findAndHookMethod(AbsListView.class, "initAbsListView", initHook);
 
 		/* Another one */
-		findAndHookMethod(ScrollView.class, "initScrollView", new XC_MethodHook() {
-			@Override
-			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-				ScrollView view = (ScrollView) param.thisObject;
-				if (!(view.getContext() instanceof Activity))
-					return;
-				Activity activity = (Activity) view.getContext();		
-				BroadcastReceiver receiver = new ScrollReceiver(view);
-				addReceiverToActivity(activity, receiver);
-				activity.registerReceiver(receiver, new IntentFilter(INTENT_SCROLL_TO_TOP));
-			}
-		});
+		findAndHookMethod(ScrollView.class, "initScrollView", initHook);
 
 		/* FYI, there are some manufacturer specific ones, like Samsung's TouchWiz ones.
 		 * I'll look into those later on...
